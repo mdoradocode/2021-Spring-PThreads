@@ -28,7 +28,7 @@ clean:
 #
 # below is some makefile magic, don't worry about how it works for now
 #
-test: par_sumsq test.txt 
+test: par_sumsq test.txt
 	@echo "==== Test 01 (baseline - serial) ===="
 	@echo ">>>> Result should be 14 2 1 3"
 	@echo ">>>> ... with 1 worker 'real' time should be 8 seconds"

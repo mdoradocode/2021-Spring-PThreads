@@ -37,7 +37,7 @@ typedef struct task{
 
 // function prototypes
 void *calculate_square(void* num);
-void create_task_queue(struct task *task, FILE *fin);
+void create_task_queue(volatile struct task *task, FILE *fin);
 void initialize();
 int next_free_thread();
 
@@ -64,16 +64,16 @@ void initialize(){
 	pthread_mutex_init(&cond_mutex,NULL);
 	pthread_cond_init(&cond_cond,NULL);
 }
-void create_task_queue(struct task *task, FILE *fin){
+void create_task_queue(volatile struct task *task, FILE *fin){
 	char action;
 	long num;
-	printf("here 4");
-	//if((fscanf(fin, "%c %ld\n", &action, &num)) == EOF){
-		//printf("here 3");
-		//task->next = NULL;
-	//}
-	while(fscanf(fin, "%c %ld\n", &action, &num) == 2){
-		struct task* next = malloc(sizeof(task));
+	printf("here before\n");
+	if(fscanf(fin, "%c %ld\n", &action, &num) != 2){
+		printf("here 3");
+		task->next = NULL;
+	}
+	else{
+		volatile struct task* next = malloc(sizeof(task));
 		task->next = next;
 		next->action = action;
 		next->number = num;
@@ -81,6 +81,7 @@ void create_task_queue(struct task *task, FILE *fin){
 		printf("%ld\n", next->number);
 		create_task_queue(next, fin);
 	}
+ printf("here now");
 }
 
 //update global aggregate variables given a number
@@ -120,22 +121,18 @@ int main(int argc, char* argv[])
   	}
   	//Read in text file
   	char *fn = argv[1];
-  	//Read in the number of threads
-  	int threadcount;
-  	threadcount = atoi(argv[2]);
-  	printf("Thread count: %d \n",threadcount);
+  	//Read in the number of thread
   	// load numbers and add them to the queue
   	FILE* fin = fopen(fn, "r");
 	//Create the intial head of the queue
   	char action;
   	long num;
-  	struct task* head = (task*) malloc(sizeof(task));
+  	volatile struct task* head = (task*) malloc(sizeof(task));
   	if(fscanf(fin, "%c %ld\n", &action, &num)==2){
   		(*head).action = action;
   		(*head).number = num;
   		(*head).next = NULL;
   		create_task_queue(head, fin);
-		printf("hello -2");
 	}
 	printf("hello");
 	//This initializes the array of free threads, couldnt do it in a function
@@ -164,17 +161,18 @@ int main(int argc, char* argv[])
 			sleep(num);
 		}
 		else if(action == 'p'){
-			int freeThread = next_free_thread();
-			pthread_mutex_lock(&cond_mutex);
-			while(next_free_thread() == 0){
-				pthread_cond_wait(&cond_cond, &cond_mutex);
-			}
-			pthread_mutex_unlock(&cond_mutex);
-			pthread_create(thread_array[freeThread].threadName,NULL,&calculate_square,(void*)num);
-			//pthread_join(*thread_array[freeThread].threadName, NULL);
-			pthread_mutex_lock(&cond_mutex);
-			pthread_cond_signal(&cond_cond);
-			pthread_mutex_unlock(&cond_mutex);
+		//	int freeThread = next_free_thread();
+		//	pthread_mutex_lock(&cond_mutex);
+		//	while(next_free_thread() == 0){
+		//		printf("here");
+		//		pthread_cond_wait(&cond_cond, &cond_mutex);
+		//	}
+		//	pthread_mutex_unlock(&cond_mutex);
+		//	pthread_create(thread_array[freeThread].threadName,NULL,&calculate_square,(void*)num);
+		//	//pthread_join(*thread_array[freeThread].threadName, NULL);
+		//	pthread_mutex_lock(&cond_mutex);
+		//	pthread_cond_signal(&cond_cond);
+		//	pthread_mutex_unlock(&cond_mutex);
 		}
 		else{
 			printf("ERROR: Unrecognized action: '%c'\n", action);
