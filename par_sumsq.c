@@ -36,17 +36,12 @@ typedef struct task{
 }task;
 
 // function prototypes
-void calculate_square(long number);
+void *calculate_square(void* num);
 void create_task_queue(struct task *task, FILE *fin);
 void initialize();
-void add_process(int num, int threadID);//To be implemeted
 int next_free_thread();
 
 //Fucntion Definitions
-void add_process(int num, int threadID){
-	
-}
-
 int next_free_thread(){
 	if(thread_array[1].isFree == true){
 		thread_array[1].isFree = false;
@@ -72,10 +67,12 @@ void initialize(){
 void create_task_queue(struct task *task, FILE *fin){
 	char action;
 	long num;
-	if((fscanf(fin, "%c %ld\n", &action, &num)) != 2){
-		task->next = NULL;
-	}
-	else{
+	printf("here 4");
+	//if((fscanf(fin, "%c %ld\n", &action, &num)) == EOF){
+		//printf("here 3");
+		//task->next = NULL;
+	//}
+	while(fscanf(fin, "%c %ld\n", &action, &num) == 2){
 		struct task* next = malloc(sizeof(task));
 		task->next = next;
 		next->action = action;
@@ -87,25 +84,29 @@ void create_task_queue(struct task *task, FILE *fin){
 }
 
 //update global aggregate variables given a number
-void calculate_square(long number)
+void* calculate_square(void* num)
 {
+	//long number =  (long*) num;
 	//calculate the square
-	long the_square = number * number;
-	sleep(number);
+	long the_square =(*(int*)num) * (*(int*)num);
+	sleep(*(int*)num);
 
 //Everything after this point will be the critical section
 	//let's add this to our (global) sum
+	pthread_mutex_lock(&cond_mutex);
 	sum += the_square;
 	//now we also tabulate some (meaningless) statistics
-	if (number % 2 == 1) {
+	if ((*(int*)num) % 2 == 1) {
     		odd++;
   	}
-  	if (number < min) {
-    		min = number;
+  	if ((*(int*)num) < min) {
+    		min = *(int*)num;
   	}
-  	if (number > max) {
-    		max = number;
+  	if ((*(int*)num) > max) {
+    		max = *(int*)num;
   	}
+	pthread_mutex_unlock(&cond_mutex);
+	return NULL;
 }
 
 
@@ -134,7 +135,9 @@ int main(int argc, char* argv[])
   		(*head).number = num;
   		(*head).next = NULL;
   		create_task_queue(head, fin);
+		printf("hello -2");
 	}
+	printf("hello");
 	//This initializes the array of free threads, couldnt do it in a function
 	for(int i=0;i<4;i++){
 		thread_array[i].isFree = true;
@@ -161,15 +164,17 @@ int main(int argc, char* argv[])
 			sleep(num);
 		}
 		else if(action == 'p'){
-			//int freeThread = next_free_thread();
-			//if(freeThread == 0){
-				//pthread_mutex_lock(&cond_mutex);
-				//while(next_free_thread() == 0){
-					//pthread_cond_wait(&cond_cond, &cond_mutex);
-				//}
-
-			//}
-			//assign_thread();
+			int freeThread = next_free_thread();
+			pthread_mutex_lock(&cond_mutex);
+			while(next_free_thread() == 0){
+				pthread_cond_wait(&cond_cond, &cond_mutex);
+			}
+			pthread_mutex_unlock(&cond_mutex);
+			pthread_create(thread_array[freeThread].threadName,NULL,&calculate_square,(void*)num);
+			//pthread_join(*thread_array[freeThread].threadName, NULL);
+			pthread_mutex_lock(&cond_mutex);
+			pthread_cond_signal(&cond_cond);
+			pthread_mutex_unlock(&cond_mutex);
 		}
 		else{
 			printf("ERROR: Unrecognized action: '%c'\n", action);
