@@ -106,14 +106,14 @@ void* calculate_square(void* num)
     		odd++;
   	}
   	if (number < min){
-    		min = num;
+    		min = number;
   	}
   	if (number > max){
     		max = number;
   	}
 	pthread_mutex_unlock(&cond_mutex);
 	printf("here in calc square after mutex unlock\n");
-	return NULL;
+	return 0;
 }
 
 
@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
 	}
 
   	fclose(fin);
-
+	sleep(10);
   	// print results
   	printf("%ld %ld %ld %ld\n", sum, odd, min, max);
 
