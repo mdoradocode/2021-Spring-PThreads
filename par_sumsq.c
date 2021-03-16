@@ -1,3 +1,4 @@
+
 /*..
  * par_sumsq.c
  *
@@ -27,7 +28,7 @@ typedef struct thread{
 	int threadID;
 	pthread_t *threadName;
 }thread;
-struct thread thread_array[4];
+volatile struct thread thread_array[4];
 
 typedef struct task{
 	char action;
@@ -35,8 +36,13 @@ typedef struct task{
 	struct task* next;
 }task;
 
+typedef struct arguements{
+	long num;
+	int threadNum;
+}arguements;
+
 // function prototypes
-void *calculate_square(void* num);
+void *calculate_square(void* args);
 void create_task_queue(struct task *task, FILE *fin);
 void initialize();
 int next_free_thread();
@@ -67,11 +73,8 @@ void initialize(){
 	void create_task_queue(struct task *task, FILE *fin){
 	char action;
 	long num;
-	printf("here before\n");
 	if(fscanf(fin, "%c %ld\n", &action, &num) != 2){
-		printf("here 3\n");
 		task->next = NULL;
-		printf("here 4\n");
 	}
 	else{
 		struct task* next = malloc(sizeof(task));
@@ -85,11 +88,13 @@ void initialize(){
 }
 
 //update global aggregate variables given a number
-void* calculate_square(void* num)
-{	printf("here in calc square begin\n");
+void* calculate_square(void* args)
+{
+	struct arguements *arg =(struct arguements*) args;
+	printf("here in calc square begin\n");
 	//long number =  (long*) num;
 	//calculate the square
-	long number = (long) num;
+	long number = arg->num;
 	printf("here in calc square before the_square\n");
 	long the_square = number*number;
 	//long the_square =(*(long*)number) * (*(long*)number);
@@ -99,6 +104,7 @@ void* calculate_square(void* num)
 //Everything after this point will be the critical section
 	//let's add this to our (global) sum
 	printf("here in calc square before mutext lock\n");
+	printf("%ld %d\n", arg->num,arg->threadNum);
 	pthread_mutex_lock(&cond_mutex);
 	sum += the_square;
 	//now we also tabulate some (meaningless) statistics
@@ -111,6 +117,7 @@ void* calculate_square(void* num)
   	if (number > max){
     		max = number;
   	}
+	thread_array[arg->threadNum].isFree = true;
 	pthread_mutex_unlock(&cond_mutex);
 	printf("here in calc square after mutex unlock\n");
 	return 0;
@@ -119,6 +126,7 @@ void* calculate_square(void* num)
 
 int main(int argc, char* argv[])
 {	pthread_t masterThread, thread1, thread2, thread3;
+	struct arguements args;
 	initialize();
   	// check and parse command line options
   	if (argc != 3) {
@@ -139,9 +147,7 @@ int main(int argc, char* argv[])
   		(*head).number = num;
   		(*head).next = NULL;
   		create_task_queue(head, fin);
-		printf("here 5\n");
 	}
-	printf("here 6\n");
 	//This initializes the array of free threads, couldnt do it in a function
 	for(int i=0;i<4;i++){
 		thread_array[i].isFree = true;
@@ -159,13 +165,14 @@ int main(int argc, char* argv[])
 			thread_array[i].threadName = &thread3;
 		}
 	}
-	printf("here 7\n");
-	while((*head).next != NULL){
+	while(1){
 		//Next 3 lines "pop" the next instruction from the queue
 		action = (*head).action;
-		num = (*head).number;
 		head = (*head).next;
-		int freeThread;
+		int freeThread = next_free_thread();
+		args.threadNum = freeThread;
+		args.num = (*head).number;
+		printf("%ld %d\n",args.num, args.threadNum);
 		switch(action){
 			case 'w':
 				printf("here in case w\n");
@@ -174,15 +181,14 @@ int main(int argc, char* argv[])
 			case 'p':
 				pthread_mutex_lock(&cond_mutex);
 				printf("here in case p before while loop\n");
-				while((freeThread = next_free_thread()) == 0){
+				while(freeThread == 0){
 					printf("here in case p while loop before wait\n");
 					pthread_cond_wait(&cond_cond, &cond_mutex);
 					printf("here in case p while loop after wait\n");
 				}
 				pthread_mutex_unlock(&cond_mutex);
 				printf("here in case p after wait and lock\n");
-				pthread_create(thread_array[freeThread].threadName,NULL,&calculate_square,(void*)num);
-		//		pthread_join(*thread_array[freeThread].threadName, NULL);
+				pthread_create(thread_array[freeThread].threadName,NULL,&calculate_square,(void*) &args);
 		//		pthread_mutex_lock(&cond_mutex);
 		//		pthread_cond_signal(&cond_cond);
 		//		pthread_mutex_unlock(&cond_mutex);
@@ -191,10 +197,16 @@ int main(int argc, char* argv[])
 			//printf("ERROR: Unrecognized action: '%c'\n", action);
 			//exit(EXIT_FAILURE);
 		}
+		if((*head).next == NULL){
+			break;
+		}
 	}
 
   	fclose(fin);
-	sleep(10);
+	while(thread_array[0].isFree == false &&
+		thread_array[1].isFree == false &&
+		thread_array[2].isFree == false &&
+		thread_array[3].isFree == false){}
   	// print results
   	printf("%ld %ld %ld %ld\n", sum, odd, min, max);
 
