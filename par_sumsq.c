@@ -81,8 +81,6 @@ void initialize(){
 		task->next = next;
 		next->action = action;
 		next->number = num;
-		printf("%c\n", next->action);
-		printf("%ld\n", next->number);
 		create_task_queue(next, fin);
 	}
 }
@@ -90,11 +88,11 @@ void initialize(){
 //update global aggregate variables given a number
 void* calculate_square(void* args)
 {
-	struct arguements *arg =(struct arguements*) args;
+	struct arguements *arg = (struct arguements*)args;
 	printf("here in calc square begin\n");
 	//long number =  (long*) num;
 	//calculate the square
-	long number = arg->num;
+	long number = (*arg).num;
 	printf("here in calc square before the_square\n");
 	long the_square = number*number;
 	//long the_square =(*(long*)number) * (*(long*)number);
@@ -104,7 +102,7 @@ void* calculate_square(void* args)
 //Everything after this point will be the critical section
 	//let's add this to our (global) sum
 	printf("here in calc square before mutext lock\n");
-	printf("%ld %d\n", arg->num,arg->threadNum);
+	printf("%ld %d\n\n\n", (*arg).num,(*arg).threadNum);
 	pthread_mutex_lock(&cond_mutex);
 	sum += the_square;
 	//now we also tabulate some (meaningless) statistics
@@ -117,7 +115,7 @@ void* calculate_square(void* args)
   	if (number > max){
     		max = number;
   	}
-	thread_array[arg->threadNum].isFree = true;
+	thread_array[(*arg).threadNum].isFree = true;
 	pthread_mutex_unlock(&cond_mutex);
 	printf("here in calc square after mutex unlock\n");
 	return 0;
@@ -169,16 +167,16 @@ int main(int argc, char* argv[])
 		//Next 3 lines "pop" the next instruction from the queue
 		action = (*head).action;
 		head = (*head).next;
-		int freeThread = next_free_thread();
+		int freeThread;
 		args.threadNum = freeThread;
 		args.num = (*head).number;
-		printf("%ld %d\n",args.num, args.threadNum);
 		switch(action){
 			case 'w':
 				printf("here in case w\n");
 				sleep(num);
 				break;
 			case 'p':
+				freeThread = next_free_thread();
 				pthread_mutex_lock(&cond_mutex);
 				printf("here in case p before while loop\n");
 				while(freeThread == 0){
@@ -201,7 +199,7 @@ int main(int argc, char* argv[])
 			break;
 		}
 	}
-
+	sleep(10);
   	fclose(fin);
 	while(thread_array[0].isFree == false &&
 		thread_array[1].isFree == false &&
