@@ -37,7 +37,7 @@ test: par_sumsq test.txt
 	@echo ">>>> (make sure to read the Project notes to understand *why* it's 8 seconds)"
 	@echo "==== Test 01 (DONE) ===="
 
-test.txt:
-	@echo "==== (creating test.txt) ===="
-	@printf "p 1\nw 2\np 2\np 3\n" > test.txt
+##test.txt:
+	##@echo "==== (creating test.txt) ===="
+	##@printf "p 1\nw 2\np 2\np 3\n" > test.txt
 

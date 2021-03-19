@@ -23,6 +23,7 @@ volatile bool done = false;
 pthread_mutex_t cond_mutex;
 pthread_cond_t cond_cond;
 
+//This contains information about each thread and what its current state is
 typedef struct thread{
 	bool isFree;
 	int threadID;
@@ -30,80 +31,91 @@ typedef struct thread{
 }thread;
 volatile struct thread thread_array[4];
 
+//The struct of each task that is read from the test file
 typedef struct task{
 	char action;
 	long number;
 	struct task* next;
 }task;
 
+//This was used to get mutiple arguements into the pthreads function
 typedef struct arguements{
 	long num;
 	int threadNum;
 }arguements;
 
 // function prototypes
+//Main work to be done function
 void *calculate_square(void* args);
+
+//Creates a singly linked list of tasks to be taken from
 void create_task_queue(struct task *task, FILE *fin);
+
+//initializes some of the pthreads stuff
 void initialize();
+
+//Returns the next free thread of a list of 3, if none are available, it returns a zero
 int next_free_thread();
 
 //Fucntion Definitions
+//Return the next free thread
 int next_free_thread(){
-	if(thread_array[1].isFree == true){
+	if(thread_array[1].isFree == true){//Give the thread number and mark it as in use
 		thread_array[1].isFree = false;
 		return 1;
 	}
-	else if(thread_array[2].isFree == true){
+	else if(thread_array[2].isFree == true){//Return the thread number and mark it as in use
 		thread_array[2].isFree = false;
 		return 2;
 	}
-	else if(thread_array[3].isFree == true){
+	else if(thread_array[3].isFree == true){//Return the thread number and mark it as in use
 		thread_array[3].isFree = false;
 		return 3;
 	}
-	else{
+	else{//Return 0 (the master thread) and do not mark it, as the 0 thread will never be
+	     //passed into pthread function
 		return 0;
 	}
 }
 
+//initialize Pthreads variables
 void initialize(){
-	pthread_mutex_init(&cond_mutex,NULL);
-	pthread_cond_init(&cond_cond,NULL);
+	pthread_mutex_init(&cond_mutex,NULL);//Intialize the mutex with basic variables
+	pthread_cond_init(&cond_cond,NULL);//Initialize the condition with basic variabless
 }
-	void create_task_queue(struct task *task, FILE *fin){
-	char action;
-	long num;
-	if(fscanf(fin, "%c %ld\n", &action, &num) != 2){
-		task->next = NULL;
+
+//Create the Task Queue
+void create_task_queue(struct task *task, FILE *fin){
+	char action;//variable for the file to read into
+	long num;//variable for the file to read into
+	if(fscanf(fin, "%c %ld\n", &action, &num) != 2){//Base case, if the return of fscanf is != 2 then its EOF
+		task->next = NULL;//Have the last node next point to null
 	}
-	else{
+	else{//Recursive case, allocate a new task and assign the variables from the if statement
 		struct task* next = malloc(sizeof(task));
 		task->next = next;
 		next->action = action;
 		next->number = num;
-		create_task_queue(next, fin);
+		create_task_queue(next, fin);//Recursive call
 	}
 }
 
 //update global aggregate variables given a number
 void* calculate_square(void* args)
 {
-	struct arguements *arg = (struct arguements*)args;
-	printf("here in calc square begin\n");
-	//long number =  (long*) num;
-	//calculate the square
-	long number = (*arg).num;
-	printf("here in calc square before the_square\n");
-	long the_square = number*number;
-	//long the_square =(*(long*)number) * (*(long*)number);
-	printf("here in calc square before sleep(num)\n");
+	//pthread_mutex_lock(&cond_mutex);
+	struct arguements *arg = (struct arguements*)args;//Create a pointer to the pointer of args
+
+	//printf("here in calc square begin\n");
+	long number = (*arg).num;//lock the current value of args to number
+	int threadNum = (*arg).threadNum;//lock the current value ofargs to threadNum
+	pthread_cond_signal(&cond_cond);//Allow the master to keep assigning new args values
+	long the_square = number*number;//Calculate the square
 	sleep(number);
 
 //Everything after this point will be the critical section
 	//let's add this to our (global) sum
-	printf("here in calc square before mutext lock\n");
-	printf("%ld %d\n\n\n", (*arg).num,(*arg).threadNum);
-	pthread_mutex_lock(&cond_mutex);
+	pthread_mutex_lock(&cond_mutex);//Lock global variables
 	sum += the_square;
 	//now we also tabulate some (meaningless) statistics
 	if (number % 2 == 1){
@@ -115,16 +127,18 @@ void* calculate_square(void* args)
   	if (number > max){
     		max = number;
   	}
-	thread_array[(*arg).threadNum].isFree = true;
-	pthread_mutex_unlock(&cond_mutex);
-	printf("here in calc square after mutex unlock\n");
+	thread_array[threadNum].isFree = true;//mark the thread as available for reassignment
+	pthread_mutex_unlock(&cond_mutex);//Unlock the mutex
+	pthread_mutex_lock(&cond_mutex);//Relock mutex to signal *may remove*
+	pthread_cond_signal(&cond_cond);//allow any locked and waiting tasks to be assigned
+	pthread_mutex_unlock(&cond_mutex);//unlock mutex *may remove*
 	return 0;
 }
 
 
 int main(int argc, char* argv[])
-{	pthread_t masterThread, thread1, thread2, thread3;
-	struct arguements args;
+{	pthread_t masterThread, thread1, thread2, thread3;//All 4 threads
+	volatile struct arguements args;//Arguments for the calc square function
 	initialize();
   	// check and parse command line options
   	if (argc != 3) {
@@ -144,7 +158,7 @@ int main(int argc, char* argv[])
   		(*head).action = action;
   		(*head).number = num;
   		(*head).next = NULL;
-  		create_task_queue(head, fin);
+  		create_task_queue(head, fin);//Build rest of queue
 	}
 	//This initializes the array of free threads, couldnt do it in a function
 	for(int i=0;i<4;i++){
@@ -165,46 +179,48 @@ int main(int argc, char* argv[])
 	}
 	while(1){
 		//Next 3 lines "pop" the next instruction from the queue
+		pthread_mutex_lock(&cond_mutex);
+		args.num = (*head).number;
 		action = (*head).action;
 		head = (*head).next;
-		int freeThread;
-		args.threadNum = freeThread;
-		args.num = (*head).number;
-		switch(action){
+		pthread_mutex_unlock(&cond_mutex);
+		switch(action){//Choose which action to preform
 			case 'w':
-				printf("here in case w\n");
 				sleep(num);
 				break;
 			case 'p':
-				freeThread = next_free_thread();
 				pthread_mutex_lock(&cond_mutex);
-				printf("here in case p before while loop\n");
-				while(freeThread == 0){
-					printf("here in case p while loop before wait\n");
-					pthread_cond_wait(&cond_cond, &cond_mutex);
-					printf("here in case p while loop after wait\n");
+				int freeThread = next_free_thread();//Get the next free thread
+				args.threadNum = freeThread;//Assign that free thread
+				pthread_mutex_unlock(&cond_mutex);
+				while(freeThread == 0){//if the thread is 0, there are no threads available so it must wait
+					pthread_cond_wait(&cond_cond, &cond_mutex);//Wait for a thread to signal availablity
+					if((freeThread = next_free_thread()) != 0){//This may be extra
+						args.threadNum = freeThread;//Assign the new thread to args
+						break;
+					}
 				}
 				pthread_mutex_unlock(&cond_mutex);
-				printf("here in case p after wait and lock\n");
 				pthread_create(thread_array[freeThread].threadName,NULL,&calculate_square,(void*) &args);
-		//		pthread_mutex_lock(&cond_mutex);
-		//		pthread_cond_signal(&cond_cond);
-		//		pthread_mutex_unlock(&cond_mutex);
-				printf("here in case p just before break\n");
+				//Wait for calc square to assign values before getting new ones
+				pthread_mutex_lock(&cond_mutex);
+				pthread_cond_wait(&cond_cond, &cond_mutex);
+				pthread_mutex_unlock(&cond_mutex);
 				break;
-			//printf("ERROR: Unrecognized action: '%c'\n", action);
-			//exit(EXIT_FAILURE);
 		}
-		if((*head).next == NULL){
+		//After all instructions are popped and assigned
+		if(head == NULL){
+			//Wait for all threads to finish
+			while(1){
+				if(thread_array[0].isFree == true &&
+					thread_array[1].isFree == true &&
+					thread_array[2].isFree == true &&
+					thread_array[3].isFree == true){break;}
+                        }
 			break;
 		}
 	}
-	sleep(10);
   	fclose(fin);
-	while(thread_array[0].isFree == false &&
-		thread_array[1].isFree == false &&
-		thread_array[2].isFree == false &&
-		thread_array[3].isFree == false){}
   	// print results
   	printf("%ld %ld %ld %ld\n", sum, odd, min, max);
 
