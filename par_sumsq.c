@@ -2,7 +2,7 @@
 /*..
  * par_sumsq.c
  *
- * CS 446.646 Project 1 (Pthreads)
+ * CS 446.646 Project 5 (Pthreads)
  *
  * Compile with --std=c99
  */
