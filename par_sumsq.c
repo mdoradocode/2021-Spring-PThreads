@@ -157,7 +157,7 @@ int main(int argc, char* argv[])
 	char action;
   	long num;
 	printf("here about tasks head\n");
-  	struct task* head = (*task) malloc(sizeof(task));
+  	struct task* head = (task*) malloc(sizeof(task));
 	printf("here above the task queue");
   	if(fscanf(fin, "%c %ld\n", &action, &num)==2){
   		(*head).action = action;
