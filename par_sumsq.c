@@ -2,7 +2,7 @@
 /*..
  * par_sumsq.c
  *
- * CS 446.646 Project 1 (Pthreads)
+ * CS 446.646 Project 5 (Pthreads)
  *
  * Compile with --std=c99
  */
@@ -137,7 +137,8 @@ void* calculate_square(void* args)
 
 
 int main(int argc, char* argv[])
-{	pthread_t masterThread, thread1, thread2, thread3;//All 4 threads
+{	printf("Begin\n");
+	pthread_t masterThread, thread1, thread2, thread3;//All 4 threads
 	volatile struct arguements args;//Arguments for the calc square function
 	initialize();
   	// check and parse command line options
@@ -149,17 +150,22 @@ int main(int argc, char* argv[])
   	char *fn = argv[1];
   	//Read in the number of thread
   	// load numbers and add them to the queue
+	printf("here about file i/o\n");
   	FILE* fin = fopen(fn, "r");
 	//Create the intial head of the queue
-  	char action;
+  	printf("here below file i/o\n");
+	char action;
   	long num;
-  	struct task* head = (task*) malloc(sizeof(task));
+	printf("here about tasks head\n");
+  	struct task* head = (*task) malloc(sizeof(task));
+	printf("here above the task queue");
   	if(fscanf(fin, "%c %ld\n", &action, &num)==2){
   		(*head).action = action;
   		(*head).number = num;
   		(*head).next = NULL;
   		create_task_queue(head, fin);//Build rest of queue
 	}
+	printf("here about thread array\n");
 	//This initializes the array of free threads, couldnt do it in a function
 	for(int i=0;i<4;i++){
 		thread_array[i].isFree = true;
@@ -177,6 +183,7 @@ int main(int argc, char* argv[])
 			thread_array[i].threadName = &thread3;
 		}
 	}
+	printf("here before the while loop\n");
 	while(1){
 		//Next 3 lines "pop" the next instruction from the queue
 		pthread_mutex_lock(&cond_mutex);
@@ -207,7 +214,9 @@ int main(int argc, char* argv[])
 				pthread_cond_wait(&cond_cond, &cond_mutex);
 				pthread_mutex_unlock(&cond_mutex);
 				break;
+				printf("here at the bottom of the while loop\n");
 		}
+		printf("here after list is done");
 		//After all instructions are popped and assigned
 		if(head == NULL){
 			//Wait for all threads to finish
@@ -220,6 +229,7 @@ int main(int argc, char* argv[])
 			break;
 		}
 	}
+	printf("here at the bottomw");
   	fclose(fin);
   	// print results
   	printf("%ld %ld %ld %ld\n", sum, odd, min, max);
