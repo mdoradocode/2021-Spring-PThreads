@@ -29,7 +29,13 @@ typedef struct thread{
 	int threadID;
 	pthread_t *threadName;
 }thread;
-volatile struct thread thread_array[4];
+volatile struct thread thread_array[6];
+typedef struct threadL{
+	bool isFree;
+	//pthread_t *threadName;
+	struct threadL* next;
+	int id;
+}threadL;
 
 //The struct of each task that is read from the test file
 typedef struct task{
@@ -57,7 +63,24 @@ void initialize();
 //Returns the next free thread of a list of 3, if none are available, it returns a zero
 int next_free_thread();
 
+pthread_t next_free_thread_LL();
+
+void create_thread_list(struct threadL *threadL, int threadNum, int counter);
+
 //Fucntion Definitions
+void create_thread_list(struct threadL *threadL, int threadNum, int counter){
+	if(counter == threadNum){
+		threadL->next = NULL;
+	}
+	else{
+		counter++;
+		struct threadL* next = malloc(sizeof(threadL));
+		threadL->next= next;
+		next->isFree = true;
+		next->id = counter;
+		create_thread_list(next, threadNum, counter);
+	}
+}
 //Return the next free thread
 int next_free_thread(){
 	if(thread_array[1].isFree == true){//Give the thread number and mark it as in use
@@ -137,7 +160,7 @@ void* calculate_square(void* args)
 
 
 int main(int argc, char* argv[])
-{	pthread_t masterThread, thread1, thread2, thread3;//All 4 threads
+{	pthread_t masterThread, thread1, thread2, thread3, thread4, thread5, thread6, thread7, thread8;//All 4 threads
 	volatile struct arguements args;//Arguments for the calc square function
 	initialize();
   	// check and parse command line options
@@ -145,6 +168,11 @@ int main(int argc, char* argv[])
     		printf("Usage: sumsq <infile>\n");
     		exit(EXIT_FAILURE);
   	}
+	int threadCount = atoi(argv[2]);
+	//struct threadL* threadHead = (threadL*) malloc(sizeof(threadL));
+	//(*threadHead).isFree = true;
+	//(*threadHead).id = 1;
+	//create_thread_list(threadHead, threadCount, 1);
   	//Read in text file
   	char *fn = argv[1];
   	//Read in the number of thread
