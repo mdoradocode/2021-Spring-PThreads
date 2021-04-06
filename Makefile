@@ -38,6 +38,6 @@ test: par_sumsq test.txt
 	@echo "==== Test 01 (DONE) ===="
 
 test.txt:
-	##@echo "==== (creating test.txt) ===="
-	##@printf "p 1\nw 2\np 2\np 3\n" > test.txt
+	@echo "==== (creating test.txt) ===="
+	@printf "p 1\nw 2\np 2\np 3\n" > test.txt
 
