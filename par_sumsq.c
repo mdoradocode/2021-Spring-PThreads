@@ -32,7 +32,7 @@ typedef struct thread{
 volatile struct thread thread_array[6];
 typedef struct threadL{
 	bool isFree;
-	//pthread_t *threadName;
+	pthread_t *threadName;
 	struct threadL* next;
 	int id;
 }threadL;
@@ -74,7 +74,7 @@ void create_thread_list(struct threadL *threadL, int threadNum, int counter){
 	}
 	else{
 		counter++;
-		struct threadL* next = malloc(sizeof(threadL));
+		struct threadL* next =  malloc(sizeof(threadL));
 		threadL->next= next;
 		next->isFree = true;
 		next->id = counter;
@@ -160,7 +160,7 @@ void* calculate_square(void* args)
 
 
 int main(int argc, char* argv[])
-{	pthread_t masterThread, thread1, thread2, thread3, thread4, thread5, thread6, thread7, thread8;//All 4 threads
+{	pthread_t masterThread, thread1, thread2, thread3;//All 4 threads
 	volatile struct arguements args;//Arguments for the calc square function
 	initialize();
   	// check and parse command line options
@@ -169,10 +169,13 @@ int main(int argc, char* argv[])
     		exit(EXIT_FAILURE);
   	}
 	int threadCount = atoi(argv[2]);
-	//struct threadL* threadHead = (threadL*) malloc(sizeof(threadL));
-	//(*threadHead).isFree = true;
-	//(*threadHead).id = 1;
-	//create_thread_list(threadHead, threadCount, 1);
+	volatile pthread_t threadArray[atoi(argv[2])];
+	struct threadL* threadHead = (threadL*) malloc(sizeof(threadL));
+	(*threadHead).isFree = true;
+	(*threadHead).id = 1;
+	(*threadHead).threadName = threadArray[0]; 
+	printf("do we get here?");
+	create_thread_list(threadHead, threadCount, 1);
   	//Read in text file
   	char *fn = argv[1];
   	//Read in the number of thread
