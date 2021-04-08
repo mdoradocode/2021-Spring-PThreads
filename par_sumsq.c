@@ -24,18 +24,19 @@ pthread_mutex_t cond_mutex;
 pthread_cond_t cond_cond;
 
 //This contains information about each thread and what its current state is
-typedef struct thread{
-	bool isFree;
-	int threadID;
-	pthread_t *threadName;
-}thread;
-volatile struct thread thread_array[6];
+//typedef struct thread{
+//	bool isFree;
+//	int threadID;
+//	pthread_t *threadName;
+//}thread;
+//volatile struct thread thread_array[1000];
 typedef struct threadL{
 	bool isFree;
-	pthread_t *threadName;
+	//pthread_t* threadName;
 	struct threadL* next;
 	int id;
 }threadL;
+volatile struct threadL threadArray[1001];
 
 //The struct of each task that is read from the test file
 typedef struct task{
@@ -48,6 +49,7 @@ typedef struct task{
 typedef struct arguements{
 	long num;
 	int threadNum;
+	struct threadL* threadLHead;
 }arguements;
 
 // function prototypes
@@ -61,9 +63,9 @@ void create_task_queue(struct task *task, FILE *fin);
 void initialize();
 
 //Returns the next free thread of a list of 3, if none are available, it returns a zero
-int next_free_thread();
-
-pthread_t next_free_thread_LL();
+int next_free_thread(struct threadL* threadL);
+void mark_thread(struct threadL* threadL, int id);
+bool are_we_done(struct threadL*);
 
 void create_thread_list(struct threadL *threadL, int threadNum, int counter);
 
@@ -81,25 +83,59 @@ void create_thread_list(struct threadL *threadL, int threadNum, int counter){
 		create_thread_list(next, threadNum, counter);
 	}
 }
-//Return the next free thread
-int next_free_thread(){
-	if(thread_array[1].isFree == true){//Give the thread number and mark it as in use
-		thread_array[1].isFree = false;
-		return 1;
+int next_free_thread(struct threadL* threadL){
+	if(threadL->isFree == true){
+		threadL->isFree = false;
+		return threadL->id;
 	}
-	else if(thread_array[2].isFree == true){//Return the thread number and mark it as in use
-		thread_array[2].isFree = false;
-		return 2;
-	}
-	else if(thread_array[3].isFree == true){//Return the thread number and mark it as in use
-		thread_array[3].isFree = false;
-		return 3;
-	}
-	else{//Return 0 (the master thread) and do not mark it, as the 0 thread will never be
-	     //passed into pthread function
+	else if(threadL->next == NULL){
 		return 0;
 	}
+	else{
+		next_free_thread(threadL->next);
+	}
 }
+
+void mark_thread(struct threadL* threadL, int id){
+	if(threadL->id == id){
+		threadL->isFree = true;
+		return;
+	}
+	else{
+		mark_thread(threadL->next, id);
+	}
+
+}
+bool are_we_done(struct threadL* threadL){
+	if(threadL->isFree == false){
+		return false;
+	}
+	else if(threadL->next == NULL){
+		return true;
+	}
+	else{
+		are_we_done(threadL->next);
+	}
+}
+//Return the next free thread
+//int next_free_thread(){
+//	if(thread_array[1].isFree == true){//Give the thread number and mark it as in use
+//		thread_array[1].isFree = false;
+//		return 1;
+//	}
+//	else if(thread_array[2].isFree == true){//Return the thread number and mark it as in use
+//		thread_array[2].isFree = false;
+//		return 2;
+//	}
+//	else if(thread_array[3].isFree == true){//Return the thread number and mark it as in use
+//		thread_array[3].isFree = false;
+//		return 3;
+//	}
+//	else{//Return 0 (the master thread) and do not mark it, as the 0 thread will never be
+	     //passed into pthread function
+//		return 0;
+//	}
+//}
 
 //initialize Pthreads variables
 void initialize(){
@@ -132,6 +168,7 @@ void* calculate_square(void* args)
 	//printf("here in calc square begin\n");
 	long number = (*arg).num;//lock the current value of args to number
 	int threadNum = (*arg).threadNum;//lock the current value ofargs to threadNum
+	struct threadL* threadLHead = (*arg).threadLHead;
 	pthread_cond_signal(&cond_cond);//Allow the master to keep assigning new args values
 	long the_square = number*number;//Calculate the square
 	sleep(number);
@@ -150,7 +187,7 @@ void* calculate_square(void* args)
   	if (number > max){
     		max = number;
   	}
-	thread_array[threadNum].isFree = true;//mark the thread as available for reassignment
+	mark_thread(threadLHead, threadNum);//mark the thread as available for reassignment
 	pthread_mutex_unlock(&cond_mutex);//Unlock the mutex
 	pthread_mutex_lock(&cond_mutex);//Relock mutex to signal *may remove*
 	pthread_cond_signal(&cond_cond);//allow any locked and waiting tasks to be assigned
@@ -160,7 +197,7 @@ void* calculate_square(void* args)
 
 
 int main(int argc, char* argv[])
-{	pthread_t masterThread, thread1, thread2, thread3;//All 4 threads
+{	//pthread_t masterThread, thread1, thread2, thread3;//All 4 threads
 	volatile struct arguements args;//Arguments for the calc square function
 	initialize();
   	// check and parse command line options
@@ -169,13 +206,10 @@ int main(int argc, char* argv[])
     		exit(EXIT_FAILURE);
   	}
 	int threadCount = atoi(argv[2]);
-	volatile pthread_t threadArray[atoi(argv[2])];
 	struct threadL* threadHead = (threadL*) malloc(sizeof(threadL));
-	(*threadHead).isFree = true;
-	(*threadHead).id = 1;
-	(*threadHead).threadName = threadArray[0]; 
-	printf("do we get here?");
-	create_thread_list(threadHead, threadCount, 1);
+	threadHead->isFree = true;
+	threadHead->id = 0;
+	create_thread_list(threadHead, threadCount, 0);
   	//Read in text file
   	char *fn = argv[1];
   	//Read in the number of thread
@@ -192,28 +226,29 @@ int main(int argc, char* argv[])
   		create_task_queue(head, fin);//Build rest of queue
 	}
 	//This initializes the array of free threads, couldnt do it in a function
-	for(int i=0;i<4;i++){
-		thread_array[i].isFree = true;
-		thread_array[i].threadID = i;
-		if(i == 0){
-			thread_array[i].threadName = &masterThread;
-		}
-		else if(i == 1){
-			thread_array[i].threadName = &thread1;
-		}
-		else if(i == 2){
-			thread_array[i].threadName = &thread2;
-		}
-		else if (i == 3){
-			thread_array[i].threadName = &thread3;
-		}
-	}
+	//for(int i=0;i<4;i++){
+	//	thread_array[i].isFree = true;
+	//	thread_array[i].threadID = i;
+	//	if(i == 0){
+	//		thread_array[i].threadName = &masterThread;
+	//	}
+	//	else if(i == 1){
+	//		thread_array[i].threadName = &thread1;
+	//	}
+	//	else if(i == 2){
+	//		thread_array[i].threadName = &thread2;
+	//	}
+	//	else if (i == 3){
+	//		thread_array[i].threadName = &thread3;
+	//	}
+	//}
 	while(1){
 		//Next 3 lines "pop" the next instruction from the queue
 		pthread_mutex_lock(&cond_mutex);
 		args.num = (*head).number;
 		action = (*head).action;
 		head = (*head).next;
+		args.threadLHead = threadHead;
 		pthread_mutex_unlock(&cond_mutex);
 		switch(action){//Choose which action to preform
 			case 'w':
@@ -221,18 +256,18 @@ int main(int argc, char* argv[])
 				break;
 			case 'p':
 				pthread_mutex_lock(&cond_mutex);
-				int freeThread = next_free_thread();//Get the next free thread
+				int freeThread = next_free_thread(threadHead->next);//Get the next free thread
 				args.threadNum = freeThread;//Assign that free thread
 				pthread_mutex_unlock(&cond_mutex);
 				while(freeThread == 0){//if the thread is 0, there are no threads available so it must wait
 					pthread_cond_wait(&cond_cond, &cond_mutex);//Wait for a thread to signal availablity
-					if((freeThread = next_free_thread()) != 0){//This may be extra
+					if((freeThread = next_free_thread(threadHead->next)) != 0){//This may be extra
 						args.threadNum = freeThread;//Assign the new thread to args
 						break;
 					}
 				}
 				pthread_mutex_unlock(&cond_mutex);
-				pthread_create(thread_array[freeThread].threadName,NULL,&calculate_square,(void*) &args);
+				pthread_create(&threadArray[freeThread],NULL,&calculate_square,(void*) &args);
 				//Wait for calc square to assign values before getting new ones
 				pthread_mutex_lock(&cond_mutex);
 				pthread_cond_wait(&cond_cond, &cond_mutex);
@@ -243,10 +278,7 @@ int main(int argc, char* argv[])
 		if(head == NULL){
 			//Wait for all threads to finish
 			while(1){
-				if(thread_array[0].isFree == true &&
-					thread_array[1].isFree == true &&
-					thread_array[2].isFree == true &&
-					thread_array[3].isFree == true){break;}
+				if(are_we_done(threadHead) == true){break;}
                         }
 			break;
 		}
