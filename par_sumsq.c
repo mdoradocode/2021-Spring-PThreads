@@ -1,4 +1,3 @@
-
 /*..
  * par_sumsq.c
  *
@@ -23,20 +22,12 @@ volatile bool done = false;
 pthread_mutex_t cond_mutex;
 pthread_cond_t cond_cond;
 
-//This contains information about each thread and what its current state is
-//typedef struct thread{
-//	bool isFree;
-//	int threadID;
-//	pthread_t *threadName;
-//}thread;
-//volatile struct thread thread_array[1000];
 typedef struct threadL{
 	bool isFree;
-	//pthread_t* threadName;
 	struct threadL* next;
 	int id;
 }threadL;
-volatile struct threadL threadArray[1001];
+volatile struct threadL threadArray[10001];
 
 //The struct of each task that is read from the test file
 typedef struct task{
@@ -91,13 +82,12 @@ int next_free_thread(struct threadL* threadL){
 	else if(threadL->next == NULL){
 		return 0;
 	}
-	next_free_thread(threadL->next);
+	return next_free_thread(threadL->next);
 }
 
 void mark_thread(struct threadL* threadL, int id){
 	if(threadL->id == id){
 		threadL->isFree = true;
-		printf("A thread has finished\n");
 		return;
 	}
 	else{
@@ -112,29 +102,8 @@ bool are_we_done(struct threadL* threadL){
 	else if(threadL->next == NULL){
 		return true;
 	}
-	are_we_done(threadL->next);
+	return are_we_done(threadL->next);
 }
-//Return the next free thread
-//int next_free_thread(){
-//	if(thread_array[1].isFree == true){//Give the thread number and mark it as in use
-//		thread_array[1].isFree = false;
-//		return 1;
-//	}
-//	else if(thread_array[2].isFree == true){//Return the thread number and mark it as in use
-//		thread_array[2].isFree = false;
-//		return 2;
-//	}
-//	else if(thread_array[3].isFree == true){//Return the thread number and mark it as in use
-//		thread_array[3].isFree = false;
-//		return 3;
-//	}
-//	else{//Return 0 (the master thread) and do not mark it, as the 0 thread will never be
-	     //passed into pthread function
-//		return 0;
-//	}
-//}
-
-//initialize Pthreads variables
 void initialize(){
 	pthread_mutex_init(&cond_mutex,NULL);//Intialize the mutex with basic variables
 	pthread_cond_init(&cond_cond,NULL);//Initialize the condition with basic variabless
@@ -163,10 +132,12 @@ void* calculate_square(void* args)
 	struct arguements *arg = (struct arguements*)args;//Create a pointer to the pointer of args
 
 	//printf("here in calc square begin\n");
+	pthread_mutex_lock(&cond_mutex);
 	long number = (*arg).num;//lock the current value of args to number
 	int threadNum = (*arg).threadNum;//lock the current value ofargs to threadNum
 	struct threadL* threadLHead = (*arg).threadLHead;
 	pthread_cond_signal(&cond_cond);//Allow the master to keep assigning new args values
+	pthread_mutex_unlock(&cond_mutex);
 	long the_square = number*number;//Calculate the square
 	sleep(number);
 
@@ -185,17 +156,13 @@ void* calculate_square(void* args)
     		max = number;
   	}
 	mark_thread(threadLHead, threadNum);//mark the thread as available for reassignment
-	//pthread_mutex_unlock(&cond_mutex);//Unlock the mutex
-	//pthread_mutex_lock(&cond_mutex);//Relock mutex to signal *may remove*
-	pthread_cond_signal(&cond_cond);//allow any locked and waiting tasks to be assigned
 	pthread_mutex_unlock(&cond_mutex);//unlock mutex *may remove*
 	return 0;
 }
 
 
 int main(int argc, char* argv[])
-{	//pthread_t masterThread, thread1, thread2, thread3;//All 4 threads
-	volatile struct arguements args;//Arguments for the calc square function
+{	volatile struct arguements args;//Arguments for the calc square function
 	initialize();
   	// check and parse command line options
   	if (argc != 3) {
@@ -203,7 +170,7 @@ int main(int argc, char* argv[])
     		exit(EXIT_FAILURE);
   	}
 	int threadCount = atoi(argv[2]);
-	struct threadL* threadHead = (threadL*) malloc(sizeof(threadL));
+	volatile struct threadL* threadHead = (threadL*) malloc(sizeof(threadL));
 	threadHead->isFree = true;
 	threadHead->id = 0;
 	create_thread_list(threadHead, threadCount, 0);
@@ -222,23 +189,6 @@ int main(int argc, char* argv[])
   		(*head).next = NULL;
   		create_task_queue(head, fin);//Build rest of queue
 	}
-	//This initializes the array of free threads, couldnt do it in a function
-	//for(int i=0;i<4;i++){
-	//	thread_array[i].isFree = true;
-	//	thread_array[i].threadID = i;
-	//	if(i == 0){
-	//		thread_array[i].threadName = &masterThread;
-	//	}
-	//	else if(i == 1){
-	//		thread_array[i].threadName = &thread1;
-	//	}
-	//	else if(i == 2){
-	//		thread_array[i].threadName = &thread2;
-	//	}
-	//	else if (i == 3){
-	//		thread_array[i].threadName = &thread3;
-	//	}
-	//}
 	while(1){
 		//Next 3 lines "pop" the next instruction from the queue
 		pthread_mutex_lock(&cond_mutex);
@@ -257,13 +207,14 @@ int main(int argc, char* argv[])
 				args.threadNum = freeThread;//Assign that free thread
 				pthread_mutex_unlock(&cond_mutex);
 				while(freeThread == 0){//if the thread is 0, there are no threads available so it must wait
-					pthread_cond_wait(&cond_cond, &cond_mutex);//Wait for a thread to signal availablity
+					pthread_mutex_lock(&cond_mutex);
 					if((freeThread = next_free_thread(threadHead->next)) != 0){//This may be extra
 						args.threadNum = freeThread;//Assign the new thread to args
+						pthread_mutex_unlock(&cond_mutex);
 						break;
 					}
+					pthread_mutex_unlock(&cond_mutex);
 				}
-				pthread_mutex_unlock(&cond_mutex);
 				pthread_create(&threadArray[freeThread],NULL,&calculate_square,(void*) &args);
 				//Wait for calc square to assign values before getting new ones
 				pthread_mutex_lock(&cond_mutex);
@@ -275,9 +226,9 @@ int main(int argc, char* argv[])
 		if(head == NULL){
 			//Wait for all threads to finish
 			while(1){
-				printf("maybe we get stuck at the end \n");
-				sleep(1);
+				pthread_mutex_lock(&cond_mutex);
 				if(are_we_done(threadHead) == true){break;}
+				pthread_mutex_unlock(&cond_mutex);
                         }
 			break;
 		}
@@ -289,4 +240,3 @@ int main(int argc, char* argv[])
   	// clean up and return
   	return (EXIT_SUCCESS);
 }
-
