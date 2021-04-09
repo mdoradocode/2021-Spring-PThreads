@@ -91,14 +91,13 @@ int next_free_thread(struct threadL* threadL){
 	else if(threadL->next == NULL){
 		return 0;
 	}
-	else{
-		next_free_thread(threadL->next);
-	}
+	next_free_thread(threadL->next);
 }
 
 void mark_thread(struct threadL* threadL, int id){
 	if(threadL->id == id){
 		threadL->isFree = true;
+		printf("A thread has finished\n");
 		return;
 	}
 	else{
@@ -113,9 +112,7 @@ bool are_we_done(struct threadL* threadL){
 	else if(threadL->next == NULL){
 		return true;
 	}
-	else{
-		are_we_done(threadL->next);
-	}
+	are_we_done(threadL->next);
 }
 //Return the next free thread
 //int next_free_thread(){
@@ -188,8 +185,8 @@ void* calculate_square(void* args)
     		max = number;
   	}
 	mark_thread(threadLHead, threadNum);//mark the thread as available for reassignment
-	pthread_mutex_unlock(&cond_mutex);//Unlock the mutex
-	pthread_mutex_lock(&cond_mutex);//Relock mutex to signal *may remove*
+	//pthread_mutex_unlock(&cond_mutex);//Unlock the mutex
+	//pthread_mutex_lock(&cond_mutex);//Relock mutex to signal *may remove*
 	pthread_cond_signal(&cond_cond);//allow any locked and waiting tasks to be assigned
 	pthread_mutex_unlock(&cond_mutex);//unlock mutex *may remove*
 	return 0;
@@ -278,6 +275,8 @@ int main(int argc, char* argv[])
 		if(head == NULL){
 			//Wait for all threads to finish
 			while(1){
+				printf("maybe we get stuck at the end \n");
+				sleep(1);
 				if(are_we_done(threadHead) == true){break;}
                         }
 			break;

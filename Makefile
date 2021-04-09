@@ -22,7 +22,7 @@ par_sumsq: par_sumsq.c
 #
 clean:
 	@echo "==== Removing files ... ===="
-	rm -f sumsq par_sumsq test.txt
+	rm -f sumsq par_sumsq test.txt test test-01.txt test-02.txt test-03.txt test-04.txt test-01 test-02 test-03 test-04
 
 
 #
