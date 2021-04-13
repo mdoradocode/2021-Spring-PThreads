@@ -28,6 +28,7 @@ typedef struct threadL{
 	int id;
 }threadL;
 volatile struct threadL threadArray[10001];
+pthread_t threadid[10001];
 
 //The struct of each task that is read from the test file
 typedef struct task{
@@ -54,14 +55,14 @@ void create_task_queue(struct task *task, FILE *fin);
 void initialize();
 
 //Returns the next free thread of a list of 3, if none are available, it returns a zero
-int next_free_thread(struct threadL* threadL);
-void mark_thread(struct threadL* threadL, int id);
-bool are_we_done(struct threadL*);
+int next_free_thread(volatile struct threadL* threadL);
+void mark_thread(volatile struct threadL* threadL, int id);
+bool are_we_done(volatile struct threadL*);
 
-void create_thread_list(struct threadL *threadL, int threadNum, int counter);
+void create_thread_list(volatile struct threadL *threadL, int threadNum, int counter);
 
 //Fucntion Definitions
-void create_thread_list(struct threadL *threadL, int threadNum, int counter){
+void create_thread_list(volatile struct threadL *threadL, int threadNum, int counter){
 	if(counter == threadNum){
 		threadL->next = NULL;
 	}
@@ -74,7 +75,7 @@ void create_thread_list(struct threadL *threadL, int threadNum, int counter){
 		create_thread_list(next, threadNum, counter);
 	}
 }
-int next_free_thread(struct threadL* threadL){
+int next_free_thread(volatile struct threadL* threadL){
 	if(threadL->isFree == true){
 		threadL->isFree = false;
 		return threadL->id;
@@ -85,7 +86,7 @@ int next_free_thread(struct threadL* threadL){
 	return next_free_thread(threadL->next);
 }
 
-void mark_thread(struct threadL* threadL, int id){
+void mark_thread(volatile struct threadL* threadL, int id){
 	if(threadL->id == id){
 		threadL->isFree = true;
 		return;
@@ -95,7 +96,7 @@ void mark_thread(struct threadL* threadL, int id){
 	}
 
 }
-bool are_we_done(struct threadL* threadL){
+bool are_we_done(volatile struct threadL* threadL){
 	if(threadL->isFree == false){
 		return false;
 	}
@@ -130,12 +131,12 @@ void* calculate_square(void* args)
 {
 	//pthread_mutex_lock(&cond_mutex);
 	struct arguements *arg = (struct arguements*)args;//Create a pointer to the pointer of args
-
+	struct arguements arg_copy = *arg;//Perform a deep copy of the struct arg
 	//printf("here in calc square begin\n");
 	pthread_mutex_lock(&cond_mutex);
-	long number = (*arg).num;//lock the current value of args to number
-	int threadNum = (*arg).threadNum;//lock the current value ofargs to threadNum
-	struct threadL* threadLHead = (*arg).threadLHead;
+	long number = arg_copy.num;//lock the current value of args to number
+	int threadNum = arg_copy.threadNum;//lock the current value ofargs to threadNum
+	struct threadL* threadLHead = arg_copy.threadLHead;
 	pthread_cond_signal(&cond_cond);//Allow the master to keep assigning new args values
 	pthread_mutex_unlock(&cond_mutex);
 	long the_square = number*number;//Calculate the square
@@ -170,7 +171,7 @@ int main(int argc, char* argv[])
     		exit(EXIT_FAILURE);
   	}
 	int threadCount = atoi(argv[2]);
-	volatile struct threadL* threadHead = (threadL*) malloc(sizeof(threadL));
+	struct threadL* threadHead = (threadL*) malloc(sizeof(threadL));
 	threadHead->isFree = true;
 	threadHead->id = 0;
 	create_thread_list(threadHead, threadCount, 0);
@@ -215,9 +216,10 @@ int main(int argc, char* argv[])
 					}
 					pthread_mutex_unlock(&cond_mutex);
 				}
-				pthread_create(&threadArray[freeThread],NULL,&calculate_square,(void*) &args);
-				//Wait for calc square to assign values before getting new ones
 				pthread_mutex_lock(&cond_mutex);
+				pthread_create(&threadid[freeThread],NULL,&calculate_square,(void*) &args);
+				//Wait for calc square to assign values before getting new ones
+				//pthread_mutex_lock(&cond_mutex);
 				pthread_cond_wait(&cond_cond, &cond_mutex);
 				pthread_mutex_unlock(&cond_mutex);
 				break;
